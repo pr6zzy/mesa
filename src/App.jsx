@@ -45,7 +45,6 @@ export default function App() {
   // --- STATES & NAVIGATION ---
   const [activeFolderId, setActiveFolderId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewingPublicProfile, setViewingPublicProfile] = useState(null);
 
   // Modals
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
@@ -59,10 +58,8 @@ export default function App() {
   const [folderCoverInput, setFolderCoverInput] = useState('');
   const [folderIsPublic, setFolderIsPublic] = useState(true);
 
-  // Auth / Profile Form
+  // Auth Form
   const [authUsernameInput, setAuthUsernameInput] = useState('');
-  const [bioInput, setBioInput] = useState('');
-  const [avatarInput, setAvatarInput] = useState('');
 
   // Audio & Export State
   const [isZipping, setIsZipping] = useState(false);
@@ -236,7 +233,7 @@ export default function App() {
       username: authUsernameInput.trim().toLowerCase(),
       displayName: authUsernameInput.trim(),
       bio: 'Mesa Producer',
-      avatarUrl: avatarInput,
+      avatarUrl: '',
       isLoggedIn: true
     });
     setIsAuthModalOpen(false);
@@ -284,7 +281,6 @@ export default function App() {
     }
   };
 
-  // Search results calculation
   const displayedFolders = folders.filter(f => {
     if (!userProfile.isLoggedIn) {
       return f.isPublic !== false;
@@ -298,7 +294,7 @@ export default function App() {
   });
 
   return (
-    <div className={`min-h-screen ${theme.bg}${theme.text} font-sans flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-300`}>
+    <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-300`}>
       <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
 
       {/* HEADER */}
@@ -325,7 +321,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Theme Selector */}
           <select 
             value={currentTheme} 
             onChange={(e) => setCurrentTheme(e.target.value)}
@@ -383,7 +378,7 @@ export default function App() {
               <div className={`text-center py-24 rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
                 <Folder className="w-16 h-16 mx-auto text-zinc-700 mb-4 opacity-60" />
                 <p className="text-lg font-medium">No folders found</p>
-                <p className="text-sm text-zinc-500 mb-6">Create a folder to start organizing your tracks and artwork persistently.</p>
+                <p className="text-sm text-zinc-500 mb-6">Create a folder to start organizing your tracks persistently.</p>
                 {userProfile.isLoggedIn && (
                   <button onClick={handleOpenCreateModal} className={`px-5 py-2.5 rounded-xl font-medium text-sm ${theme.primaryBtn}`}>
                     Create Folder
@@ -482,4 +477,252 @@ export default function App() {
                   <button onClick={(e) => handleOpenEditModal(activeFolder, e)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 text-xs font-medium transition">
                     <Edit3 className="w-3.5 h-3.5" /> Edit Info
                   </button>
-                  <label className={`flex items
+                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium ${theme.primaryBtn} cursor-pointer transition shadow-lg`}>
+                    <Plus className="w-3.5 h-3.5" /> Upload Track (.mp3 / .wav)
+                    <input 
+                      type="file" 
+                      accept="audio/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        if (e.target.files[0]) {
+                          handleAddSongToFolder(activeFolder.id, e.target.files[0]);
+                          e.target.value = null;
+                        }
+                      }} 
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* TRACKLIST */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold tracking-tight">Tracks ({activeFolder.songs.length})</h3>
+
+              {activeFolder.songs.length === 0 ? (
+                <div className={`p-12 text-center rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
+                  <p className="text-sm text-zinc-400 mb-4">No audio files uploaded in this folder yet.</p>
+                  <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium ${theme.primaryBtn} cursor-pointer`}>
+                    <Plus className="w-3.5 h-3.5" /> Upload Track
+                    <input 
+                      type="file" 
+                      accept="audio/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        if (e.target.files[0]) {
+                          handleAddSongToFolder(activeFolder.id, e.target.files[0]);
+                          e.target.value = null;
+                        }
+                      }} 
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className={`rounded-2xl border ${theme.card} overflow-hidden divide-y divide-white/5`}>
+                  {activeFolder.songs.map((song, index) => {
+                    const isCurrentPlaying = currentSong?.id === song.id && isPlaying;
+                    return (
+                      <div key={song.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition">
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-zinc-500 font-mono w-6 text-right">0{index + 1}</span>
+                          <div>
+                            <p className="font-semibold text-sm">{song.title}</p>
+                            <p className="text-xs text-zinc-400">{song.fileName || 'audio.mp3'}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => handleExportSingleSong(song)} className="p-2.5 rounded-full border border-white/10 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition" title="Download Track">
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button 
+                            onClick={() => {
+                              if (currentSong?.id === song.id) setIsPlaying(!isPlaying);
+                              else { setCurrentSong(song); setIsPlaying(true); }
+                            }}
+                            className={`p-2.5 rounded-full ${isCurrentPlaying ? 'bg-zinc-200 text-black' : 'bg-red-700 hover:bg-red-600 text-white'} transition shadow-md`}
+                          >
+                            {isCurrentPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* CREATE / EDIT FOLDER MODAL */}
+      {isFolderModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-3xl border ${theme.card} p-6 sm:p-8 bg-zinc-950 shadow-2xl`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold">{editingFolderId ? 'Edit Folder Settings' : 'Create New Folder'}</h3>
+              <button onClick={() => setIsFolderModalOpen(false)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handleSaveFolder} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Folder / Project Name</label>
+                <input 
+                  type="text" 
+                  value={folderNameInput}
+                  onChange={(e) => setFolderNameInput(e.target.value)}
+                  placeholder="e.g. unreleased beats"
+                  required
+                  className={`w-full px-4 py-3 rounded-xl bg-black border ${theme.border} outline-none text-sm`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Producer Name</label>
+                <input 
+                  type="text" 
+                  value={folderProducerInput}
+                  onChange={(e) => setFolderProducerInput(e.target.value)}
+                  placeholder="e.g. pr6zzy"
+                  className={`w-full px-4 py-3 rounded-xl bg-black border ${theme.border} outline-none text-sm`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Cover Photo Image URL</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="url" 
+                    value={folderCoverInput}
+                    onChange={(e) => setFolderCoverInput(e.target.value)}
+                    placeholder="https://image-link.com/photo.jpg"
+                    className={`w-full px-4 py-3 rounded-xl bg-black border ${theme.border} outline-none text-sm`}
+                  />
+                  <label className={`px-4 py-3 rounded-xl border ${theme.border} bg-zinc-900 hover:bg-zinc-800 cursor-pointer flex items-center justify-center text-xs font-medium transition`}>
+                    <Camera className="w-4 h-4" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        if (e.target.files[0]) {
+                          const reader = new FileReader();
+                          reader.onload = (uploadEvent) => setFolderCoverInput(uploadEvent.target.result);
+                          reader.readAsDataURL(e.target.files[0]);
+                        }
+                      }} 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Folder Privacy</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setFolderIsPublic(true)}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-medium transition ${folderIsPublic ? 'border-red-600 bg-red-950/30 text-white' : 'border-white/10 bg-black/40 text-zinc-400'}`}
+                  >
+                    <Globe className="w-4 h-4 text-emerald-400" /> Public
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setFolderIsPublic(false)}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-xs font-medium transition ${!folderIsPublic ? 'border-red-600 bg-red-950/30 text-white' : 'border-white/10 bg-black/40 text-zinc-400'}`}
+                  >
+                    <Lock className="w-4 h-4 text-amber-400" /> Private
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setIsFolderModalOpen(false)} className="px-5 py-2.5 rounded-xl text-xs font-medium bg-zinc-900 text-zinc-300">Cancel</button>
+                <button type="submit" className={`px-6 py-2.5 rounded-xl text-xs font-medium ${theme.primaryBtn}`}>Save Folder</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SIGN IN MODAL */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`w-full max-w-sm rounded-3xl border ${theme.card} p-6 bg-zinc-950 shadow-2xl`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold flex items-center gap-2"><LogIn className="w-5 h-5 text-red-500" /> Sign In / Create Profile</h3>
+              <button onClick={() => setIsAuthModalOpen(false)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">Producer Handle / Username</label>
+                <input 
+                  type="text" 
+                  value={authUsernameInput}
+                  onChange={(e) => setAuthUsernameInput(e.target.value)}
+                  placeholder="e.g. pr6zzy"
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-white/10 outline-none text-sm"
+                />
+              </div>
+
+              <button type="submit" className={`w-full py-3 rounded-xl text-xs font-bold ${theme.primaryBtn}`}>
+                Sign In To Mesa
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* USER PROFILE MODAL */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`w-full max-w-sm rounded-3xl border ${theme.card} p-6 bg-zinc-950 shadow-2xl text-center`}>
+            <div className="w-16 h-16 mx-auto rounded-full bg-zinc-900 border border-red-600/50 flex items-center justify-center mb-3 text-red-500 font-bold text-xl">
+              {userProfile.displayName?.[0]?.toUpperCase() || 'P'}
+            </div>
+            <h3 className="text-xl font-bold">{userProfile.displayName}</h3>
+            <p className="text-xs text-zinc-400 mb-4">@{userProfile.username}</p>
+
+            <button 
+              onClick={() => {
+                setUserProfile({ ...userProfile, isLoggedIn: false });
+                setIsProfileModalOpen(false);
+              }}
+              className="w-full py-2.5 rounded-xl border border-red-900/40 bg-red-950/20 text-red-400 hover:bg-red-900/30 text-xs font-semibold flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING PLAYER */}
+      {currentSong && (
+        <div className={`fixed bottom-0 left-0 right-0 border-t ${theme.border} bg-zinc-950/95 backdrop-blur-xl px-6 py-4 z-50 flex items-center justify-between`}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-zinc-900 overflow-hidden flex items-center justify-center border border-white/10">
+              <Music className="w-6 h-6 text-red-500" />
+            </div>
+            <div>
+              <p className="font-bold text-sm">{currentSong.title}</p>
+              <p className="text-xs text-zinc-400">Playing from mesa</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsPlaying(!isPlaying)} className="p-3 rounded-full bg-red-700 hover:bg-red-600 text-white shadow-lg">
+              {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+            </button>
+            <button onClick={() => { setCurrentSong(null); setIsPlaying(false); }} className="p-2 text-zinc-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
