@@ -2,41 +2,29 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Folder, Music, Sun, Moon, FolderPlus, Edit3, ArrowLeft, 
   Trash2, Image, Camera, Play, Pause, Plus, Share2, Search, 
-  SkipBack, SkipForward, Volume2, VolumeX, X, Copy 
+  SkipBack, SkipForward, Volume2, VolumeX, X, Download, ExternalLink 
 } from 'lucide-react';
 
 export default function App() {
-  const [folders, setFolders] = useState([
-    {
-      id: 'folder-1',
-      name: '26 beats',
-      producer: 'pr6zzy',
-      coverUrl: '',
-      songs: [
-        { id: 'song-1', title: 'Midnight Drift', duration: '2:45', url: '' },
-        { id: 'song-2', title: 'Shadow Realm', duration: '3:12', url: '' }
-      ]
-    }
-  ]);
-  
+  const [folders, setFolders] = useState([]);
   const [activeFolderId, setActiveFolderId] = useState(null);
-  const [currentTheme, setCurrentTheme] = useState('blood'); // blood, crimson, obsidian
+  const [currentTheme, setCurrentTheme] = useState('blood');
   
   // Modals & States
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [folderNameInput, setFolderNameInput] = useState('');
-  const [folderProducerInput, setFolderProducerInput] = useState('');
+  const [folderProducerInput, setFolderProducerInput] = useState('pr6zzy');
   const [folderCoverInput, setFolderCoverInput] = useState('');
 
   // Audio Player State
   const [currentSong, setCurrentSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8);
+  const audioRef = useRef(null);
 
   const activeFolder = folders.find(f => f.id === activeFolderId);
 
-  // Theme definitions
+  // Expanded Gothic Theme definitions
   const themes = {
     blood: {
       name: 'Blood Red',
@@ -64,15 +52,66 @@ export default function App() {
       accent: 'text-zinc-400',
       primaryBtn: 'bg-zinc-800 hover:bg-zinc-700 text-white',
       border: 'border-zinc-800'
+    },
+    purple: {
+      name: 'Midnight Purple',
+      bg: 'bg-[#0b0312]',
+      card: 'bg-[#150624] border-[#2d0c4a]',
+      text: 'text-purple-100',
+      accent: 'text-purple-400',
+      primaryBtn: 'bg-purple-700 hover:bg-purple-600 text-white',
+      border: 'border-purple-900/40'
+    },
+    pale: {
+      name: 'Cemetery Pale',
+      bg: 'bg-[#0a0c0e]',
+      card: 'bg-[#13171d] border-[#222b36]',
+      text: 'text-slate-100',
+      accent: 'text-teal-400',
+      primaryBtn: 'bg-slate-700 hover:bg-slate-600 text-white',
+      border: 'border-slate-800'
+    },
+    gold: {
+      name: 'Vampire Gold',
+      bg: 'bg-[#121004]',
+      card: 'bg-[#1f1b07] border-[#3b330a]',
+      text: 'text-amber-100',
+      accent: 'text-amber-400',
+      primaryBtn: 'bg-amber-700 hover:bg-amber-600 text-white',
+      border: 'border-amber-900/40'
     }
   };
 
   const theme = themes[currentTheme] || themes.blood;
 
+  // Handle HTML5 audio playback whenever currentSong changes
+  useEffect(() => {
+    if (audioRef.current) {
+      if (currentSong && currentSong.url) {
+        audioRef.current.src = currentSong.url;
+        if (isPlaying) {
+          audioRef.current.play().catch(e => console.log("Playback error:", e));
+        }
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [currentSong]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.play().catch(e => console.log("Playback error:", e));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
   const handleOpenCreateModal = () => {
     setEditingFolderId(null);
     setFolderNameInput('');
-    setFolderProducerInput('');
+    setFolderProducerInput('pr6zzy');
     setFolderCoverInput('');
     setIsFolderModalOpen(true);
   };
@@ -81,7 +120,7 @@ export default function App() {
     e.stopPropagation();
     setEditingFolderId(folder.id);
     setFolderNameInput(folder.name);
-    setFolderProducerInput(folder.producer || '');
+    setFolderProducerInput(folder.producer || 'pr6zzy');
     setFolderCoverInput(folder.coverUrl || '');
     setIsFolderModalOpen(true);
   };
@@ -119,23 +158,45 @@ export default function App() {
     }
   };
 
-  const handleAddSongToFolder = (folderId, title) => {
-    if (!title) return;
+  const handleAddSongToFolder = (folderId, file) => {
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
     const newSong = {
       id: 'song-' + Date.now(),
-      title: title,
+      title: file.name.replace(/\.[^/.]+$/, ""),
       duration: '3:00',
-      url: ''
+      url: objectUrl,
+      fileName: file.name
     };
     setFolders(folders.map(f => f.id === folderId ? {
       ...f,
       songs: [...f.songs, newSong]
     } : f));
+
+    // Auto-play the uploaded song
+    setCurrentSong(newSong);
+    setIsPlaying(true);
+  };
+
+  const handleExportProject = (folder) => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(folder, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${folder.name.toLowerCase().replace(/\s+/g, '-')}-project.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-300`}>
       
+      {/* Hidden Audio Element */}
+      <audio 
+        ref={audioRef} 
+        onEnded={() => setIsPlaying(false)}
+      />
+
       {/* Top Header */}
       <header className={`border-b ${theme.border} px-6 py-4 flex items-center justify-between backdrop-blur-md sticky top-0 z-40 bg-opacity-90 bg-black/40`}>
         <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveFolderId(null)}>
@@ -145,20 +206,20 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Theme Selector */}
+          {/* Expanded Theme Selector */}
           <select 
             value={currentTheme} 
             onChange={(e) => setCurrentTheme(e.target.value)}
-            className={`text-xs px-3 py-1.5 rounded-lg bg-black/60 border ${theme.border} outline-none cursor-pointer`}
+            className={`text-xs px-3 py-1.5 rounded-lg bg-black/80 border ${theme.border} outline-none cursor-pointer`}
           >
-            <option value="blood">Blood Red</option>
-            <option value="crimson">Crimson Glow</option>
-            <option value="obsidian">Obsidian</option>
+            {Object.entries(themes).map(([key, t]) => (
+              <option key={key} value={key}>{t.name}</option>
+            ))}
           </select>
 
           <button 
             onClick={handleOpenCreateModal}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm ${theme.primaryBtn} transition shadow-lg shadow-red-950/50`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm ${theme.primaryBtn} transition shadow-lg`}
           >
             <Plus className="w-4 h-4" /> New Folder
           </button>
@@ -172,20 +233,20 @@ export default function App() {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight">Your Folders & Projects</h2>
-                <p className="text-sm text-zinc-400">Select a folder to view songs or upload new audio tracks.</p>
+                <p className="text-sm text-zinc-400">Select a folder to view songs or upload your audio tracks.</p>
               </div>
             </div>
 
             {folders.length === 0 ? (
-              <div className={`text-center py-20 rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
-                <Folder className="w-16 h-16 mx-auto text-red-800 mb-4 opacity-60" />
-                <p className="text-lg font-medium">No folders yet</p>
-                <p className="text-sm text-zinc-500 mb-6">Create your first folder to start uploading music and artwork.</p>
+              <div className={`text-center py-24 rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
+                <Folder className="w-16 h-16 mx-auto text-zinc-700 mb-4 opacity-60" />
+                <p className="text-lg font-medium">No folders created yet</p>
+                <p className="text-sm text-zinc-500 mb-6">Create your first folder to start organizing your beats and custom artwork.</p>
                 <button 
                   onClick={handleOpenCreateModal}
                   className={`px-5 py-2.5 rounded-xl font-medium text-sm ${theme.primaryBtn}`}
                 >
-                  Create Folder
+                  Create First Folder
                 </button>
               </div>
             ) : (
@@ -200,7 +261,7 @@ export default function App() {
                       {folder.coverUrl ? (
                         <img src={folder.coverUrl} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                       ) : (
-                        <Music className="w-12 h-12 text-red-900/60" />
+                        <Music className="w-12 h-12 text-zinc-700" />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
                       
@@ -208,19 +269,21 @@ export default function App() {
                       <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
                         <button 
                           onClick={(e) => handleOpenEditModal(folder, e)}
-                          className="p-2 rounded-lg bg-black/70 hover:bg-red-900 text-white transition"
+                          className="p-2 rounded-lg bg-black/70 hover:bg-zinc-800 text-white transition"
+                          title="Edit Folder"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button 
                           onClick={(e) => handleDeleteFolder(folder.id, e)}
                           className="p-2 rounded-lg bg-black/70 hover:bg-red-900 text-white transition"
+                          title="Delete Folder"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      <span className="absolute bottom-3 left-3 text-xs px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md border border-red-900/30">
+                      <span className="absolute bottom-3 left-3 text-xs px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md border border-white/10">
                         {folder.songs.length} tracks
                       </span>
                     </div>
@@ -237,21 +300,28 @@ export default function App() {
         ) : (
           /* Folder Detail View */
           <div>
-            <button 
-              onClick={() => setActiveFolderId(null)}
-              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white mb-6 transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to all folders
-            </button>
+            <div className="flex items-center justify-between mb-6">
+              <button 
+                onClick={() => setActiveFolderId(null)}
+                className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to all folders
+              </button>
+
+              <button 
+                onClick={() => handleExportProject(activeFolder)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-black/40 hover:bg-black text-xs font-medium transition text-zinc-300"
+              >
+                <Download className="w-3.5 h-3.5" /> Export Project Data
+              </button>
+            </div>
 
             <div className={`rounded-3xl border ${theme.card} p-6 sm:p-8 mb-8 flex flex-col md:flex-row gap-8 items-center bg-black/40 backdrop-blur-xl`}>
-              <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden bg-zinc-900 flex-shrink-0 border border-red-900/30 shadow-2xl">
+              <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden bg-zinc-900 flex-shrink-0 border border-white/10 shadow-2xl flex items-center justify-center">
                 {activeFolder.coverUrl ? (
                   <img src={activeFolder.coverUrl} alt={activeFolder.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Music className="w-16 h-16 text-red-900/40" />
-                  </div>
+                  <Music className="w-16 h-16 text-zinc-700" />
                 )}
               </div>
 
@@ -263,19 +333,20 @@ export default function App() {
                 <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                   <button 
                     onClick={(e) => handleOpenEditModal(activeFolder, e)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-red-900/50 hover:bg-red-950/40 text-xs font-medium transition"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 text-xs font-medium transition"
                   >
                     <Edit3 className="w-3.5 h-3.5" /> Edit Folder & Artwork
                   </button>
                   <label className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium ${theme.primaryBtn} cursor-pointer transition shadow-lg`}>
-                    <Plus className="w-3.5 h-3.5" /> Upload Audio
+                    <Plus className="w-3.5 h-3.5" /> Upload Audio Track (.mp3 / .wav)
                     <input 
                       type="file" 
                       accept="audio/*" 
                       className="hidden" 
                       onChange={(e) => {
                         if (e.target.files[0]) {
-                          handleAddSongToFolder(activeFolder.id, e.target.files[0].name.replace(/\.[^/.]+$/, ""));
+                          handleAddSongToFolder(activeFolder.id, e.target.files[0]);
+                          e.target.value = null; // reset input
                         }
                       }} 
                     />
@@ -292,40 +363,51 @@ export default function App() {
                 <div className={`p-12 text-center rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
                   <p className="text-sm text-zinc-400 mb-4">No audio files uploaded in this folder yet.</p>
                   <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium ${theme.primaryBtn} cursor-pointer`}>
-                    <Plus className="w-3.5 h-3.5" /> Add First Track
+                    <Plus className="w-3.5 h-3.5" /> Upload First Track
                     <input 
                       type="file" 
                       accept="audio/*" 
                       className="hidden" 
                       onChange={(e) => {
                         if (e.target.files[0]) {
-                          handleAddSongToFolder(activeFolder.id, e.target.files[0].name.replace(/\.[^/.]+$/, ""));
+                          handleAddSongToFolder(activeFolder.id, e.target.files[0]);
+                          e.target.value = null;
                         }
                       }} 
                     />
                   </label>
                 </div>
               ) : (
-                <div className={`rounded-2xl border ${theme.card} overflow-hidden divide-y divide-red-950/30`}>
-                  {activeFolder.songs.map((song, index) => (
-                    <div key={song.id} className="p-4 flex items-center justify-between hover:bg-red-950/20 transition">
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs text-zinc-500 font-mono w-6 text-right">0{index + 1}</span>
-                        <div>
-                          <p className="font-semibold text-sm">{song.title}</p>
-                          <p className="text-xs text-zinc-400">{activeFolder.producer}</p>
+                <div className={`rounded-2xl border ${theme.card} overflow-hidden divide-y divide-white/5`}>
+                  {activeFolder.songs.map((song, index) => {
+                    const isCurrentPlaying = currentSong?.id === song.id && isPlaying;
+                    return (
+                      <div key={song.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition">
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-zinc-500 font-mono w-6 text-right">0{index + 1}</span>
+                          <div>
+                            <p className="font-semibold text-sm">{song.title}</p>
+                            <p className="text-xs text-zinc-400">Prod. {activeFolder.producer}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => {
+                              if (currentSong?.id === song.id) {
+                                setIsPlaying(!isPlaying);
+                              } else {
+                                setCurrentSong(song);
+                                setIsPlaying(true);
+                              }
+                            }}
+                            className={`p-2.5 rounded-full ${isCurrentPlaying ? 'bg-zinc-200 text-black' : 'bg-red-700 hover:bg-red-600 text-white'} transition shadow-md`}
+                          >
+                            {isCurrentPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <button 
-                          onClick={() => { setCurrentSong(song); setIsPlaying(true); }}
-                          className="p-2.5 rounded-full bg-red-700/80 hover:bg-red-600 text-white transition shadow-md"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -351,7 +433,7 @@ export default function App() {
                   type="text" 
                   value={folderNameInput}
                   onChange={(e) => setFolderNameInput(e.target.value)}
-                  placeholder="e.g. 26 beats"
+                  placeholder="e.g. unreleased beats"
                   required
                   className={`w-full px-4 py-3 rounded-xl bg-black border ${theme.border} focus:border-red-600 outline-none text-sm`}
                 />
@@ -420,12 +502,12 @@ export default function App() {
       {currentSong && (
         <div className={`fixed bottom-0 left-0 right-0 border-t ${theme.border} bg-zinc-950/95 backdrop-blur-xl px-6 py-4 z-50 flex items-center justify-between`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-zinc-900 overflow-hidden flex items-center justify-center border border-red-900/30">
-              <Music className="w-6 h-6 text-red-600" />
+            <div className="w-12 h-12 rounded-lg bg-zinc-900 overflow-hidden flex items-center justify-center border border-white/10">
+              <Music className="w-6 h-6 text-red-500" />
             </div>
             <div>
               <p className="font-bold text-sm">{currentSong.title}</p>
-              <p className="text-xs text-zinc-400">Playing from mesa</p>
+              <p className="text-xs text-zinc-400">Now Playing from mesa</p>
             </div>
           </div>
 
@@ -437,7 +519,10 @@ export default function App() {
               {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
             </button>
             <button 
-              onClick={() => setCurrentSong(null)}
+              onClick={() => {
+                setCurrentSong(null);
+                setIsPlaying(false);
+              }}
               className="p-2 text-zinc-400 hover:text-white"
             >
               <X className="w-5 h-5" />
