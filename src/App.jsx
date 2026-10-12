@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import JSZip from 'jszip';
 import { 
   Folder, Music, Sun, Moon, FolderPlus, Edit3, ArrowLeft, 
   Trash2, Image, Camera, Play, Pause, Plus, Share2, Search, 
-  SkipBack, SkipForward, Volume2, VolumeX, X, Download, ExternalLink 
+  SkipBack, SkipForward, Volume2, VolumeX, X, Download, Archive 
 } from 'lucide-react';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const [folderNameInput, setFolderNameInput] = useState('');
   const [folderProducerInput, setFolderProducerInput] = useState('pr6zzy');
   const [folderCoverInput, setFolderCoverInput] = useState('');
+  const [isZipping, setIsZipping] = useState(false);
 
   // Audio Player State
   const [currentSong, setCurrentSong] = useState(null);
@@ -24,7 +26,7 @@ export default function App() {
 
   const activeFolder = folders.find(f => f.id === activeFolderId);
 
-  // Expanded Gothic Theme definitions
+  // Expanded Gothic Themes
   const themes = {
     blood: {
       name: 'Blood Red',
@@ -84,7 +86,6 @@ export default function App() {
 
   const theme = themes[currentTheme] || themes.blood;
 
-  // Handle HTML5 audio playback whenever currentSong changes
   useEffect(() => {
     if (audioRef.current) {
       if (currentSong && currentSong.url) {
@@ -164,40 +165,71 @@ export default function App() {
     const newSong = {
       id: 'song-' + Date.now(),
       title: file.name.replace(/\.[^/.]+$/, ""),
-      duration: '3:00',
-      url: objectUrl,
-      fileName: file.name
+      fileName: file.name,
+      fileBlob: file, // Keep raw File blob for individual and ZIP download
+      url: objectUrl
     };
     setFolders(folders.map(f => f.id === folderId ? {
       ...f,
       songs: [...f.songs, newSong]
     } : f));
 
-    // Auto-play the uploaded song
     setCurrentSong(newSong);
     setIsPlaying(true);
   };
 
-  const handleExportProject = (folder) => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(folder, null, 2));
+  // Export single song (.mp3 or .wav) directly using its blob/url and original extension
+  const handleExportSingleSong = (song) => {
+    if (!song.url && !song.fileBlob) return;
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `${folder.name.toLowerCase().replace(/\s+/g, '-')}-project.json`);
+    downloadAnchor.href = song.url;
+    downloadAnchor.download = song.fileName || `${song.title}.mp3`;
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
   };
 
+  // Export entire folder as a .ZIP containing all uploaded audio files
+  const handleExportFolderZip = async (folder) => {
+    if (!folder || folder.songs.length === 0) {
+      alert("This folder has no audio tracks to export!");
+      return;
+    }
+
+    setIsZipping(true);
+    try {
+      const zip = new JSZip();
+      const folderZip = zip.folder(folder.name);
+
+      folder.songs.forEach(song => {
+        if (song.fileBlob) {
+          folderZip.file(song.fileName, song.fileBlob);
+        }
+      });
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const zipUrl = URL.createObjectURL(content);
+
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = zipUrl;
+      downloadAnchor.download = `${folder.name.toLowerCase().replace(/\s+/g, '-')}.zip`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(zipUrl);
+    } catch (err) {
+      console.error("ZIP Generation error:", err);
+      alert("Failed to build ZIP archive.");
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-300`}>
-      
-      {/* Hidden Audio Element */}
-      <audio 
-        ref={audioRef} 
-        onEnded={() => setIsPlaying(false)}
-      />
+      <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
 
-      {/* Top Header */}
+      {/* Header */}
       <header className={`border-b ${theme.border} px-6 py-4 flex items-center justify-between backdrop-blur-md sticky top-0 z-40 bg-opacity-90 bg-black/40`}>
         <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveFolderId(null)}>
           <h1 className="text-3xl font-extrabold tracking-wider text-red-600 font-serif italic drop-shadow-[0_2px_10px_rgba(220,38,38,0.5)]">
@@ -206,7 +238,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Expanded Theme Selector */}
           <select 
             value={currentTheme} 
             onChange={(e) => setCurrentTheme(e.target.value)}
@@ -233,7 +264,7 @@ export default function App() {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight">Your Folders & Projects</h2>
-                <p className="text-sm text-zinc-400">Select a folder to view songs or upload your audio tracks.</p>
+                <p className="text-sm text-zinc-400">Select a folder to view songs or upload audio tracks.</p>
               </div>
             </div>
 
@@ -241,7 +272,7 @@ export default function App() {
               <div className={`text-center py-24 rounded-2xl border border-dashed ${theme.border} bg-black/20`}>
                 <Folder className="w-16 h-16 mx-auto text-zinc-700 mb-4 opacity-60" />
                 <p className="text-lg font-medium">No folders created yet</p>
-                <p className="text-sm text-zinc-500 mb-6">Create your first folder to start organizing your beats and custom artwork.</p>
+                <p className="text-sm text-zinc-500 mb-6">Create a folder to start organizing your tracks and custom artwork.</p>
                 <button 
                   onClick={handleOpenCreateModal}
                   className={`px-5 py-2.5 rounded-xl font-medium text-sm ${theme.primaryBtn}`}
@@ -265,19 +296,16 @@ export default function App() {
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
                       
-                      {/* Action buttons on card hover */}
                       <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
                         <button 
                           onClick={(e) => handleOpenEditModal(folder, e)}
                           className="p-2 rounded-lg bg-black/70 hover:bg-zinc-800 text-white transition"
-                          title="Edit Folder"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button 
                           onClick={(e) => handleDeleteFolder(folder.id, e)}
                           className="p-2 rounded-lg bg-black/70 hover:bg-red-900 text-white transition"
-                          title="Delete Folder"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -309,10 +337,12 @@ export default function App() {
               </button>
 
               <button 
-                onClick={() => handleExportProject(activeFolder)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-black/40 hover:bg-black text-xs font-medium transition text-zinc-300"
+                onClick={() => handleExportFolderZip(activeFolder)}
+                disabled={isZipping || activeFolder.songs.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-black/60 hover:bg-black text-xs font-medium transition text-zinc-200 disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" /> Export Project Data
+                <Archive className="w-4 h-4 text-red-500" /> 
+                {isZipping ? 'Creating ZIP...' : 'Export Folder (.ZIP)'}
               </button>
             </div>
 
@@ -335,10 +365,10 @@ export default function App() {
                     onClick={(e) => handleOpenEditModal(activeFolder, e)}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 text-xs font-medium transition"
                   >
-                    <Edit3 className="w-3.5 h-3.5" /> Edit Folder & Artwork
+                    <Edit3 className="w-3.5 h-3.5" /> Edit Artwork & Info
                   </button>
                   <label className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium ${theme.primaryBtn} cursor-pointer transition shadow-lg`}>
-                    <Plus className="w-3.5 h-3.5" /> Upload Audio Track (.mp3 / .wav)
+                    <Plus className="w-3.5 h-3.5" /> Upload Track (.mp3 / .wav)
                     <input 
                       type="file" 
                       accept="audio/*" 
@@ -346,7 +376,7 @@ export default function App() {
                       onChange={(e) => {
                         if (e.target.files[0]) {
                           handleAddSongToFolder(activeFolder.id, e.target.files[0]);
-                          e.target.value = null; // reset input
+                          e.target.value = null;
                         }
                       }} 
                     />
@@ -387,10 +417,21 @@ export default function App() {
                           <span className="text-xs text-zinc-500 font-mono w-6 text-right">0{index + 1}</span>
                           <div>
                             <p className="font-semibold text-sm">{song.title}</p>
-                            <p className="text-xs text-zinc-400">Prod. {activeFolder.producer}</p>
+                            <p className="text-xs text-zinc-400">{song.fileName || 'audio.mp3'}</p>
                           </div>
                         </div>
+
                         <div className="flex items-center gap-3">
+                          {/* Export / Download Individual Song */}
+                          <button 
+                            onClick={() => handleExportSingleSong(song)}
+                            className="p-2.5 rounded-full border border-white/10 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition"
+                            title="Export Song (.mp3 / .wav)"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Play / Pause */}
                           <button 
                             onClick={() => {
                               if (currentSong?.id === song.id) {
@@ -415,7 +456,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Folder Creation / Editing Modal */}
+      {/* Create / Edit Folder Modal */}
       {isFolderModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className={`w-full max-w-md rounded-3xl border ${theme.card} p-6 sm:p-8 bg-zinc-950 shadow-2xl`}>
@@ -498,7 +539,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Audio Player Bar */}
+      {/* Floating Audio Player */}
       {currentSong && (
         <div className={`fixed bottom-0 left-0 right-0 border-t ${theme.border} bg-zinc-950/95 backdrop-blur-xl px-6 py-4 z-50 flex items-center justify-between`}>
           <div className="flex items-center gap-4">
@@ -507,7 +548,7 @@ export default function App() {
             </div>
             <div>
               <p className="font-bold text-sm">{currentSong.title}</p>
-              <p className="text-xs text-zinc-400">Now Playing from mesa</p>
+              <p className="text-xs text-zinc-400">Playing from mesa</p>
             </div>
           </div>
 
