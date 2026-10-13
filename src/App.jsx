@@ -732,23 +732,88 @@ export default function App() {
               <button onClick={() => setIsAuthModalOpen(false)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
 
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">Producer Handle / Username</label>
-                <input 
-                  type="text" 
-                  value={authUsernameInput}
-                  onChange={(e) => setAuthUsernameInput(e.target.value)}
-                  placeholder="e.g. pr6zzy"
-                  required
-                  className="w-full px-4 py-3 rounded-xl bg-black border border-white/10 outline-none text-sm"
-                />
-              </div>
+            ```jsx
+<form onSubmit={handleLoginSubmit} className="space-y-4">
+  {authMode === 'signup' && (
+    <div>
+      <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+        Producer Handle / Username
+      </label>
+      <input
+        type="text"
+        value={authUsernameInput}
+        onChange={(e) => setAuthUsernameInput(e.target.value)}
+        placeholder="e.g. pr6zzy"
+        required
+        minLength={3}
+        maxLength={24}
+        className="w-full px-4 py-3 rounded-xl bg-black border border-white/10 outline-none text-sm"
+      />
+    </div>
+  )}
 
-              <button type="submit" className={`w-full py-3 rounded-xl text-xs font-bold ${theme.primaryBtn}`}>
-                Sign In To Mesa
-              </button>
-            </form>
+  <div>
+    <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+      Email
+    </label>
+    <input
+      type="email"
+      value={authEmailInput}
+      onChange={(e) => setAuthEmailInput(e.target.value)}
+      placeholder="you@example.com"
+      required
+      className="w-full px-4 py-3 rounded-xl bg-black border border-white/10 outline-none text-sm"
+    />
+  </div>
+
+  <div>
+    <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+      Password
+    </label>
+    <input
+      type="password"
+      value={authPasswordInput}
+      onChange={(e) => setAuthPasswordInput(e.target.value)}
+      placeholder="Enter your password"
+      required
+      minLength={6}
+      className="w-full px-4 py-3 rounded-xl bg-black border border-white/10 outline-none text-sm"
+    />
+  </div>
+
+  {authError && (
+    <p className="text-sm text-red-400">{authError}</p>
+  )}
+
+  <button
+    type="submit"
+    disabled={authLoading}
+    className={`w-full py-3 rounded-xl text-xs font-bold ${theme.primaryBtn} disabled:opacity-50`}
+  >
+    {authLoading
+      ? 'Please wait...'
+      : authMode === 'signup'
+        ? 'Create Account'
+        : 'Sign In To Mesa'}
+  </button>
+
+  <p className="text-center text-xs text-zinc-400">
+    {authMode === 'signup'
+      ? 'Already have an account?'
+      : "Don't have an account yet?"}{' '}
+    <button
+      type="button"
+      onClick={() => {
+        setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
+        setAuthError('');
+      }}
+      className="font-bold text-white hover:underline"
+    >
+      {authMode === 'signup' ? 'Sign in' : 'Create account'}
+    </button>
+  </p>
+</form>
+```
           </div>
         </div>
       )}
