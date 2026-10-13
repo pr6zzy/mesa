@@ -226,18 +226,95 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  const handleLoginSubmit = (e) => {
+  
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!authUsernameInput.trim()) return;
-    setUserProfile({
-      username: authUsernameInput.trim().toLowerCase(),
-      displayName: authUsernameInput.trim(),
-      bio: 'Mesa Producer',
-      avatarUrl: '',
-      isLoggedIn: true
-    });
-    setIsAuthModalOpen(false);
+    setAuthError('');
+    setAuthLoading(true);
+
+    const username = authUsernameInput.trim().toLowerCase();
+    const email = authEmailInput.trim().toLowerCase();
+    const password = authPasswordInput;
+
+    try {
+      if (!email || !password) {
+        setAuthError('Enter your email and password.');
+        return;
+      }
+
+      if (authMode === 'signup') {
+        if (!username) {
+          setAuthError('Choose a username.');
+          return;
+        }
+
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+          setAuthError(
+            'Username must be 3–24 characters using letters, numbers, or underscores.'
+          );
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              username,
+              display_name: authUsernameInput.trim()
+            }
+          }
+        });
+
+        if (error) throw error;
+
+        if (!data.session) {
+          setAuthError(
+            'Account created! Check your email to verify your account, then sign in.'
+          );
+          setAuthMode('signin');
+          return;
+        }
+
+        setUserProfile({
+          username,
+          displayName: authUsernameInput.trim(),
+          bio: 'Mesa Producer',
+          avatarUrl: '',
+          isLoggedIn: true
+        });
+
+        setIsAuthModalOpen(false);
+      } else {
+        const { data, error } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+
+        if (error) throw error;
+
+        const metadata = data.user.user_metadata || {};
+        const signedInUsername =
+          metadata.username || email.split('@')[0];
+
+        setUserProfile({
+          username: signedInUsername,
+          displayName: metadata.display_name || signedInUsername,
+          bio: 'Mesa Producer',
+          avatarUrl: '',
+          isLoggedIn: true
+        });
+
+        setIsAuthModalOpen(false);
+      }
+    } catch (error) {
+      setAuthError(error.message || 'Authentication failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
   };
+
 
   const handleExportSingleSong = (song) => {
     if (!song.url) return;
